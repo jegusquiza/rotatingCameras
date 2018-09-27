@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>Rotating Cameras</title>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+		<style>
+			body {
+				background-color: #000;
+				color: #fff;
+				margin: 0px;
+				overflow: hidden;
+
+			}
+
+		</style>
+	</head>
+	<body>
+
+    <script src="https://threejs.org/build/three.js"></script>
+		<script src="js/ConvolutionShader.js"></script>
+		<script src="js/CopyShader.js"></script>
+		<script src="js/EffectComposer.js"></script>
+		<script src="js/RenderPass.js"></script>
+		<script src="js/MaskPass.js"></script>
+		<script src="js/BloomPass.js"></script>
+		<script src="js/ShaderPass.js"></script>
+		<script src="js/DigitalGlitch.js"></script>
+    <script src="js/GlitchPass.js"></script>
+		<script src="js/RGBShiftShader.js"></script>
+		<script src="js/Detector.js"></script>
+
+		<video id="video" autoplay loop crossOrigin="anonymous" webkit-playsinline style="display:none"></video>
+
+
+		<script>
+			if ( ! Detector.webgl ) Detector.addGetWebGLMessage();
+			var container;
+			var camera, scene, renderer;
+			var video, material, mesh;
+			var composer;
+      var videoUrl;
+  		var videoTexture;
+			var particleGeo;
+			var particleMat;
+
+			init();
+			animate();
+
+			function init() {
+				container = document.createElement( 'div' );
+				document.body.appendChild( container );
+
+				//Create the scene
+				scene = new THREE.Scene();
+				//Create the camera
+				camera = new THREE.PerspectiveCamera( 40, window.innerWidth / window.innerHeight, 1, 10000 );
+				camera.position.x = 0;
+				camera.position.y = 0;
+				camera.position.z = 20;
+
+				renderer = new THREE.WebGLRenderer();
+				renderer.setPixelRatio( window.devicePixelRatio );
+				renderer.setSize( window.innerWidth, window.innerHeight );
+
+				container.appendChild( renderer.domElement );
+
+				video = document.getElementById( 'video' );
+				videoTexture = new THREE.VideoTexture( video );
+				videoTexture.minFilter = THREE.LinearFilter;
+				videoTexture.magFilter = THREE.LinearFilter;
+				videoTexture.format = THREE.RGBFormat;
+
+
+
+        (function(){
+			  //target that video element we created
+			    videoUrl = window.URL || window.webkitURL;
+
+			    //method for getting media in different browsers
+			    navigator.getMedia = navigator.getUserMedia ||
+			                         navigator.webkitGetUserMedia ||
+			                         navigator.mozGetUserMedia ||
+			                         navigator.msGetUserMedia;
+
+				    //capture video
+				    navigator.getMedia({
+				      video:true,
+				      audio:false
+				    }, function(stream){
+				        // console.log(stream);
+				        video.src = videoUrl.createObjectURL(stream);
+				        video.play();
+				    }, function(error) {
+				        //An error occured
+				        //error.code
+				    });
+					})();
+
+				////Creating the particle system////
+
+				//Create the geometry
+				particleGeo = new THREE.SphereGeometry(10, 64, 64);
+
+				//Adjust the positions of the vertices
+				particleGeo.vertices.forEach(function(vertex){
+
+					vertex.x += Math.sin((Math.random() * 50 - 10));
+					vertex.y += Math.cos((Math.random() * 50 - 10));
+					vertex.z += Math.sin((Math.random() * 50 - 10));
+				});
+
+				//Create the material
+				particleMat = new THREE.PointsMaterial({
+				color: 'rgb(255, 255, 255)',
+				size: 1.5,
+				map: videoTexture,
+				transparent: true,
+				blending: THREE.AdditiveBlending,
+				depthWrite: true,
+
+				});
+
+				//Create the particeSystem with THREE.points
+				var particleSystem = new THREE.Points(
+				particleGeo,
+				particleMat
+
+				);
+
+				particleSystem.name = 'particleSystem';
+
+				scene.add(particleSystem);
+
+
+				// postprocessing
+				var renderModel = new THREE.RenderPass( scene, camera );
+				var Glitch = new THREE.GlitchPass(0);
+				var effectCopy = new THREE.ShaderPass( THREE.CopyShader );
+				effectCopy.renderToScreen = true;
+
+				composer = new THREE.EffectComposer( renderer );
+				composer.addPass( renderModel );
+				composer.addPass(Glitch);
+				composer.addPass( effectCopy );
+
+				window.addEventListener( 'resize', onWindowResize, false );
+				}
+
+				function onWindowResize() {
+				windowHalfX = window.innerWidth / 2;
+				windowHalfY = window.innerHeight / 2;
+				camera.aspect = window.innerWidth / window.innerHeight;
+				camera.updateProjectionMatrix();
+				renderer.setSize( window.innerWidth, window.innerHeight );
+				composer.reset();
+				}
+
+				function animate() {
+
+				var particleSystem = scene.getObjectByName('particleSystem');
+
+				//Particle System rotation
+				particleSystem.rotation.y += 0.005;
+
+				////camera rotation
+				camera.rotation.z += (.2*(Math.PI / 200));
+
+				requestAnimationFrame( animate );
+				render();
+				}
+
+				var delta = 0;
+
+				function render() {
+
+				//Changing the rgb color of each point/particle
+				for (var i = 0; i < 100; i++){
+
+					delta += 0.0000000005 * (i * 1000);
+					particleMat.color.r = (Math.sin(delta) / Math.cos(delta)) * 5;
+				};
+
+				//resetting delta value
+				if ( delta > 50000){
+				  delta = 0.000000000005;
+				};
+
+				// console.log(delta);
+
+				composer.render();
+			}
+		</script>
+
+	</body>
+</html>
